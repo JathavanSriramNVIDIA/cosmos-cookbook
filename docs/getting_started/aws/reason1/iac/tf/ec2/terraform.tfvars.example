@@ -1,0 +1,84 @@
+# =============================================================================
+# Example Terraform Variables for Cosmos Reason1 NIM on EC2
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Access is via AWS Systems Manager Session Manager (no SSH required).
+# A dedicated VPC with private subnets is created for security.
+# =============================================================================
+
+# AWS Region for deployment
+aws_region = "us-east-1"
+
+# Resource naming prefix
+resource_prefix = "cosmos"
+
+# -----------------------------------------------------------------------------
+# VPC Configuration
+# -----------------------------------------------------------------------------
+
+# CIDR block for the dedicated VPC
+vpc_cidr = "10.0.0.0/16"
+
+# Availability zones for deployment
+# G5/G6 GPU instances may not be available in all AZs - specify AZs with GPU capacity
+# Leave empty to auto-select, or specify specific AZs
+availability_zones = ["us-east-1c", "us-east-1f"]
+
+# Enable VPC flow logs for network monitoring (recommended for security)
+enable_vpc_flow_logs = true
+
+# Retention period for VPC flow logs (days)
+flow_logs_retention_days = 30
+
+# -----------------------------------------------------------------------------
+# EC2 Instance Configuration
+# -----------------------------------------------------------------------------
+
+# GPU Instance type
+# Recommended options for Cosmos Reason1:
+#   - g5.12xlarge  : 4x A10G (96GB VRAM), 192GB RAM - Good balance ($5.67/hr)
+#   - g5.24xlarge  : 4x A10G (96GB VRAM), 384GB RAM - Higher memory ($8.14/hr)
+#   - g5.48xlarge  : 8x A10G (192GB VRAM), 768GB RAM - Maximum A10G ($16.29/hr)
+#   - p4d.24xlarge : 8x A100 (320GB VRAM), 1152GB RAM - Max performance ($32.77/hr)
+instance_type = "g5.12xlarge"
+
+# Leave empty to use AWS Deep Learning AMI with pre-installed NVIDIA drivers
+# Or specify your own AMI ID
+ami_id = ""
+
+# Root volume size in GB (minimum 100GB per NVIDIA requirements)
+root_volume_size = 200
+
+# KMS key ARN for EBS encryption (leave null to use AWS-managed key)
+# Example: "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+kms_key_arn = null
+
+# Enable detailed CloudWatch monitoring
+enable_detailed_monitoring = false
+
+# -----------------------------------------------------------------------------
+# Security Configuration
+# -----------------------------------------------------------------------------
+
+# CIDR blocks allowed to access the NIM API (port 8000) directly
+# Leave empty to disable direct access (recommended - use SSM port forwarding)
+# Example: ["10.0.0.0/8"] for internal network access only
+allowed_api_cidrs = []
+
+# S3 bucket ARNs the instance is allowed to access
+# Leave null to disable S3 access, or specify bucket ARNs
+# Example: ["arn:aws:s3:::my-data-bucket", "arn:aws:s3:::my-data-bucket/*"]
+s3_bucket_arns = null
+
+# -----------------------------------------------------------------------------
+# Tags
+# -----------------------------------------------------------------------------
+
+tags = {
+  Environment = "development"
+  Team        = "ml-platform"
+  CostCenter  = "ai-research"
+  Application = "cosmos-reason1"
+}

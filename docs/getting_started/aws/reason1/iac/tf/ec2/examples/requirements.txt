@@ -1,0 +1,2 @@
+# Requirements for Cosmos Reason1 EC2 Example Scripts
+requests>=2.28.0

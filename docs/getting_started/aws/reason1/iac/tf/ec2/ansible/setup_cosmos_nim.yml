@@ -1,0 +1,584 @@
+# =============================================================================
+# Ansible Playbook: Setup Cosmos Reason1 NIM on EC2 GPU Instance
+# =============================================================================
+# This playbook fully configures an EC2 GPU instance with:
+# - System updates and prerequisites
+# - NVIDIA GPU drivers (verification)
+# - Docker installation and configuration
+# - NVIDIA Container Toolkit
+# - NGC authentication
+# - Cosmos Reason1 NIM container
+#
+# Prerequisites:
+# - EC2 instance deployed with Terraform (Deep Learning AMI recommended)
+# - AWS SSM access configured
+# - NGC API key (set NGC_API_KEY environment variable)
+#
+# Usage:
+#   export NGC_API_KEY="your-ngc-api-key"
+#   ansible-playbook -i inventory_ssm.yml setup_cosmos_nim.yml
+#
+# Reference: https://docs.nvidia.com/nim/cosmos/latest/prerequisites.html
+# =============================================================================
+- name: Setup Cosmos Reason1 NIM on EC2 GPU Instance
+  hosts: all
+  become: yes
+  vars:
+    ngc_api_key: "{{ lookup('env', 'NGC_API_KEY') }}"
+    nim_image: "nvcr.io/nim/nvidia/cosmos-reason1-7b:latest"
+    nim_container_name: "cosmos-reason1"
+    nim_port: 8000
+    workspace_dir: "/home/ubuntu/cosmos-nim"
+    # NVIDIA requirements
+
+    min_nvidia_driver_version: 535
+    min_docker_version: "23.0"
+    min_nvidia_ctk_version: "1.16"
+  handlers:
+    - name: Restart Docker
+      systemd:
+        name: docker
+        state: restarted
+  tasks:
+    # =========================================================================
+    # PHASE 1: System Prerequisites
+    # =========================================================================
+    - name: "PHASE 1: System Prerequisites"
+      debug:
+        msg: "Starting system prerequisites installation..."
+    - name: Wait for cloud-init to complete
+      command: cloud-init status --wait
+      changed_when: false
+      ignore_errors: yes
+      timeout: 300
+    - name: Wait for apt locks to be released
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+          echo "Waiting for apt lock..."
+          sleep 5
+        done
+      changed_when: false
+      timeout: 300
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+    - name: Upgrade all packages
+      apt:
+        upgrade: safe
+        autoremove: yes
+      when: upgrade_packages | default(false)
+    - name: Install system prerequisites
+      apt:
+        name:
+          - curl
+          - wget
+          - gnupg
+          - ca-certificates
+          - lsb-release
+          - jq
+          - htop
+          - nvtop
+          - python3-pip
+          - git
+          - unzip
+          - apt-transport-https
+          - software-properties-common
+          - acl # Required for Ansible become_user to work properly
+        state: present
+    # =========================================================================
+    # PHASE 2: Verify NVIDIA GPU and Drivers
+    # =========================================================================
+    - name: "PHASE 2: Verify NVIDIA GPU and Drivers"
+      debug:
+        msg: "Verifying NVIDIA GPU and drivers..."
+    - name: Check if NVIDIA GPU is present
+      shell: lspci | grep -i nvidia
+      register: nvidia_gpu_check
+      changed_when: false
+      failed_when: false
+    - name: Fail if no NVIDIA GPU found
+      fail:
+        msg: "No NVIDIA GPU detected. This playbook requires an NVIDIA GPU instance."
+      when: nvidia_gpu_check.rc != 0
+    - name: Check NVIDIA driver installation
+      command: nvidia-smi
+      register: nvidia_smi_result
+      changed_when: false
+    - name: Display NVIDIA GPU information
+      debug:
+        msg: "{{ nvidia_smi_result.stdout_lines }}"
+    - name: Get NVIDIA driver version
+      shell: nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1
+      register: nvidia_driver_version
+      changed_when: false
+    - name: Parse NVIDIA driver major version
+      set_fact:
+        nvidia_driver_major: "{{ nvidia_driver_version.stdout.split('.')[0] | int }}"
+    - name: Verify NVIDIA driver version meets minimum requirement
+      assert:
+        that:
+          - nvidia_driver_major | int >= min_nvidia_driver_version
+        fail_msg: |
+          NVIDIA driver version must be >= {{ min_nvidia_driver_version }}.
+          Current version: {{ nvidia_driver_version.stdout }}
+          Please use an AMI with updated drivers or update manually.
+        success_msg: "NVIDIA driver version {{ nvidia_driver_version.stdout }} meets requirement (>= {{ min_nvidia_driver_version }})"
+    - name: Get GPU information
+      shell: nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+      register: gpu_info
+      changed_when: false
+    - name: Display GPU details
+      debug:
+        msg: "GPU(s) detected: {{ gpu_info.stdout }}"
+    # =========================================================================
+    # PHASE 3: Docker Installation
+    # =========================================================================
+    - name: "PHASE 3: Docker Installation"
+      debug:
+        msg: "Installing and configuring Docker..."
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+    - name: Install Docker
+      when: docker_check.rc != 0
+      block:
+        - name: Remove old Docker packages
+          apt:
+            name:
+              - docker
+              - docker-engine
+              - docker.io
+              - containerd
+              - runc
+            state: absent
+          ignore_errors: yes
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+        - name: Add Docker repository
+          apt_repository:
+            repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+            state: present
+            filename: docker
+        - name: Update apt cache after adding Docker repo
+          apt:
+            update_cache: yes
+        - name: Install Docker packages
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+    - name: Add ssm-user to docker group
+      user:
+        name: ssm-user
+        groups: docker
+        append: yes
+      ignore_errors: yes
+    - name: Get Docker version
+      command: docker --version
+      register: docker_version
+      changed_when: false
+    - name: Display Docker version
+      debug:
+        msg: "{{ docker_version.stdout }}"
+    # =========================================================================
+    # PHASE 4: NVIDIA Container Toolkit Installation
+    # =========================================================================
+    - name: "PHASE 4: NVIDIA Container Toolkit Installation"
+      debug:
+        msg: "Installing NVIDIA Container Toolkit..."
+    - name: Check if NVIDIA Container Toolkit is installed
+      command: nvidia-ctk --version
+      register: nvidia_ctk_check
+      ignore_errors: yes
+      changed_when: false
+    - name: Install NVIDIA Container Toolkit
+      when: nvidia_ctk_check.rc != 0
+      block:
+        - name: Add NVIDIA Container Toolkit GPG key
+          shell: |
+            curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+            gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+          args:
+            creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+        - name: Add NVIDIA Container Toolkit repository
+          shell: |
+            curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+            sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+            tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+          args:
+            creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+        - name: Update apt cache after adding NVIDIA repo
+          apt:
+            update_cache: yes
+        - name: Install nvidia-container-toolkit
+          apt:
+            name: nvidia-container-toolkit
+            state: present
+    - name: Configure Docker to use NVIDIA runtime
+      command: nvidia-ctk runtime configure --runtime=docker
+      register: nvidia_ctk_configure
+      changed_when: "'already configured' not in nvidia_ctk_configure.stdout"
+      notify: Restart Docker
+    - name: Force handler execution for Docker restart
+      meta: flush_handlers
+    - name: Get NVIDIA Container Toolkit version
+      command: nvidia-ctk --version
+      register: nvidia_ctk_version
+      changed_when: false
+    - name: Display NVIDIA Container Toolkit version
+      debug:
+        msg: "{{ nvidia_ctk_version.stdout }}"
+    # =========================================================================
+    # PHASE 5: Verify Docker GPU Access
+    # =========================================================================
+    - name: "PHASE 5: Verify Docker GPU Access"
+      debug:
+        msg: "Verifying Docker can access GPU..."
+    - name: Test Docker GPU access
+      command: docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
+      register: docker_gpu_test
+      changed_when: false
+      retries: 3
+      delay: 10
+    - name: Display Docker GPU test result
+      debug:
+        msg: "{{ docker_gpu_test.stdout_lines }}"
+    # =========================================================================
+    # PHASE 6: NGC Authentication
+    # =========================================================================
+    - name: "PHASE 6: NGC Authentication"
+      debug:
+        msg: "Setting up NGC authentication..."
+    - name: Check NGC API key is provided
+      assert:
+        that:
+          - ngc_api_key is defined
+          - ngc_api_key | length > 0
+        fail_msg: |
+          NGC_API_KEY environment variable must be set.
+          Get your key from: https://org.ngc.nvidia.com/setup/personal-keys
+          Then run: export NGC_API_KEY="your-key"
+        success_msg: "NGC API key is configured"
+    - name: Ensure ubuntu home directory exists
+      file:
+        path: /home/ubuntu
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Ensure Docker config directory exists for ubuntu
+      file:
+        path: /home/ubuntu/.docker
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0700'
+    - name: Login to NGC Container Registry
+      shell: echo "{{ ngc_api_key }}" | docker --config /home/ubuntu/.docker login nvcr.io -u "\$oauthtoken" --password-stdin
+      args:
+        creates: /home/ubuntu/.docker/config.json
+      no_log: true
+      register: ngc_login
+      changed_when: "'Login Succeeded' in ngc_login.stdout"
+      failed_when: ngc_login.rc != 0 and 'Login Succeeded' not in ngc_login.stdout
+    - name: Set correct ownership on Docker config
+      file:
+        path: /home/ubuntu/.docker
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        recurse: yes
+    - name: Display NGC login result
+      debug:
+        msg: "NGC login: {{ 'Success' if ngc_login.rc == 0 else 'Failed' }}"
+    - name: Fail if NGC login failed
+      fail:
+        msg: |
+          NGC login failed. Please verify:
+          1. NGC_API_KEY environment variable is set correctly
+          2. The API key is valid (test at https://org.ngc.nvidia.com)
+      when: ngc_login.rc != 0
+    - name: Verify NGC login (check config exists)
+      stat:
+        path: /home/ubuntu/.docker/config.json
+      register: docker_config
+      failed_when: not docker_config.stat.exists
+    # =========================================================================
+    # PHASE 7: Setup Workspace
+    # =========================================================================
+    - name: "PHASE 7: Setup Workspace"
+      debug:
+        msg: "Creating workspace directory..."
+    - name: Create workspace directory
+      file:
+        path: "{{ workspace_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Create NGC API key file for container use
+      copy:
+        content: "{{ ngc_api_key }}"
+        dest: "{{ workspace_dir }}/.ngc_api_key"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+      no_log: true
+    # =========================================================================
+    # PHASE 8: Pull Cosmos Reason1 NIM Container
+    # =========================================================================
+    - name: "PHASE 8: Pull Cosmos Reason1 NIM Container"
+      debug:
+        msg: "Pulling NIM container image (this may take several minutes)..."
+    - name: Pull Cosmos Reason1 NIM container
+      command: docker --config /home/ubuntu/.docker pull {{ nim_image }}
+      register: docker_pull
+      changed_when: "'Downloaded newer image' in docker_pull.stdout or 'Pull complete' in docker_pull.stdout or 'Pulling from' in docker_pull.stderr"
+      async: 1800
+      poll: 30
+    # =========================================================================
+    # PHASE 9: Create Helper Scripts
+    # =========================================================================
+    - name: "PHASE 9: Create Helper Scripts"
+      debug:
+        msg: "Creating helper scripts..."
+    - name: Create start script for Cosmos Reason1 NIM
+      copy:
+        dest: "{{ workspace_dir }}/start_nim.sh"
+        content: |
+          #!/bin/bash
+          # Start Cosmos Reason1 NIM Container
+          set -e
+
+          NGC_API_KEY=$(cat {{ workspace_dir }}/.ngc_api_key)
+
+          # Stop existing container if running
+          docker stop {{ nim_container_name }} 2>/dev/null || true
+
+          echo "Starting Cosmos Reason1 NIM..."
+          docker run -d --rm \
+            --name {{ nim_container_name }} \
+            --gpus all \
+            --shm-size=32GB \
+            -p {{ nim_port }}:8000 \
+            -e NGC_API_KEY=$NGC_API_KEY \
+            {{ nim_image }}
+
+          echo "Container started. Waiting for NIM to be ready..."
+          echo "This may take 2-10 minutes depending on GPU type."
+          echo ""
+
+          # Wait for the container to be ready
+          for i in {1..60}; do
+            if curl -s http://localhost:{{ nim_port }}/v1/health/ready > /dev/null 2>&1; then
+              echo ""
+              echo "✓ NIM is ready!"
+              echo "  API endpoint: http://localhost:{{ nim_port }}"
+              exit 0
+            fi
+            echo -n "."
+            sleep 10
+          done
+
+          echo ""
+          echo "Warning: NIM may still be starting."
+          echo "Check logs with: docker logs {{ nim_container_name }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Create stop script for Cosmos Reason1 NIM
+      copy:
+        dest: "{{ workspace_dir }}/stop_nim.sh"
+        content: |
+          #!/bin/bash
+          # Stop Cosmos Reason1 NIM Container
+
+          docker stop {{ nim_container_name }} 2>/dev/null && \
+            echo "✓ Stopped {{ nim_container_name }}" || \
+            echo "Container not running"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Create test script for Cosmos Reason1 NIM
+      copy:
+        dest: "{{ workspace_dir }}/test_nim.sh"
+        content: |
+          #!/bin/bash
+          # Test Cosmos Reason1 NIM API
+
+          echo "============================================"
+          echo "Testing Cosmos Reason1 NIM API"
+          echo "============================================"
+          echo ""
+
+          # Health check
+          echo "1. Health Check:"
+          if curl -s http://localhost:{{ nim_port }}/v1/health/ready > /dev/null 2>&1; then
+            echo "   ✓ NIM is ready"
+          else
+            echo "   ✗ NIM is not ready"
+            echo "   Check if container is running: docker ps"
+            exit 1
+          fi
+          echo ""
+
+          # Models endpoint
+          echo "2. Available Models:"
+          curl -s http://localhost:{{ nim_port }}/v1/models | jq -r '.data[].id' 2>/dev/null || echo "   Could not fetch models"
+          echo ""
+
+          # Simple text inference
+          echo "3. Text Inference Test:"
+          echo "   Question: What is a robot? Answer briefly."
+          echo "   Response:"
+          curl -s -X POST http://localhost:{{ nim_port }}/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "nvidia/cosmos-reason1-7b",
+              "messages": [
+                {"role": "user", "content": "What is a robot? Answer in one sentence."}
+              ],
+              "max_tokens": 100,
+              "temperature": 0.6
+            }' | jq -r '.choices[0].message.content' 2>/dev/null || echo "   Inference failed"
+
+          echo ""
+          echo "============================================"
+          echo "Test complete!"
+          echo "============================================"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Create health check script
+      copy:
+        dest: "{{ workspace_dir }}/health_check.sh"
+        content: |
+          #!/bin/bash
+          # Health check for Cosmos Reason1 NIM
+
+          echo "============================================"
+          echo "System Health Check"
+          echo "============================================"
+          echo ""
+
+          echo "1. GPU Status:"
+          nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv
+          echo ""
+
+          echo "2. Docker Status:"
+          docker ps --format "table {% raw %}{{.Names}}\t{{.Status}}\t{{.Ports}}{% endraw %}"
+          echo ""
+
+          echo "3. NIM Health:"
+          if curl -s http://localhost:{{ nim_port }}/v1/health/ready > /dev/null 2>&1; then
+            echo "   ✓ NIM is ready"
+          else
+            echo "   ✗ NIM is not ready or not running"
+          fi
+          echo ""
+
+          echo "4. Container Logs (last 10 lines):"
+          docker logs --tail 10 {{ nim_container_name }} 2>/dev/null || echo "   Container not running"
+          echo ""
+          echo "============================================"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: Create reasoning example script
+      copy:
+        dest: "{{ workspace_dir }}/example_reasoning.sh"
+        content: |
+          #!/bin/bash
+          # Example: Cosmos Reason1 with chain-of-thought reasoning
+
+          echo "============================================"
+          echo "Cosmos Reason1 Reasoning Example"
+          echo "============================================"
+          echo ""
+          echo "Question: If a robot needs to pick up a cup from a table,"
+          echo "          what physical considerations must it account for?"
+          echo ""
+          echo "Response (with reasoning):"
+          echo ""
+
+          curl -s -X POST http://localhost:{{ nim_port }}/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "nvidia/cosmos-reason1-7b",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "Answer the question in the following format: <think>\nyour reasoning\n</think>\n\n<answer>\nyour answer\n</answer>."
+                },
+                {
+                  "role": "user",
+                  "content": "If a robot needs to pick up a cup from a table, what physical considerations must it account for?"
+                }
+              ],
+              "max_tokens": 500,
+              "temperature": 0.6
+            }' | jq -r '.choices[0].message.content'
+
+          echo ""
+          echo "============================================"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    # =========================================================================
+    # PHASE 10: Final Summary
+    # =========================================================================
+    - name: "PHASE 10: Setup Complete"
+      debug:
+        msg: |
+          ============================================================
+          COSMOS REASON1 NIM SETUP COMPLETE
+          ============================================================
+
+          System Information:
+            GPU: {{ gpu_info.stdout }}
+            NVIDIA Driver: {{ nvidia_driver_version.stdout }}
+            Docker: {{ docker_version.stdout }}
+            NVIDIA Container Toolkit: {{ nvidia_ctk_version.stdout }}
+            NIM Image: {{ nim_image }}
+
+          Workspace: {{ workspace_dir }}
+
+          Helper Scripts:
+            ./start_nim.sh      - Start the NIM container
+            ./stop_nim.sh       - Stop the NIM container
+            ./test_nim.sh       - Test the NIM API
+            ./health_check.sh   - Check system health
+            ./example_reasoning.sh - Run reasoning example
+
+          Quick Start:
+            cd {{ workspace_dir }}
+            ./start_nim.sh      # Wait 2-10 minutes for startup
+            ./test_nim.sh       # Test the API
+
+          Access from local machine (via SSM port forwarding):
+            aws ssm start-session --target <instance-id> \
+              --document-name AWS-StartPortForwardingSession \
+              --parameters '{"portNumber":["8000"],"localPortNumber":["8000"]}'
+
+            Then access: http://localhost:8000
+
+          ============================================================

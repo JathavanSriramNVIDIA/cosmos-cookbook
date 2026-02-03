@@ -1,0 +1,63 @@
+Thank you for installing {{ .Chart.Name }}!
+
+************************************************************
+*  NVIDIA Cosmos Reason1 NIM is being deployed             *
+*  It may take 5-30 minutes for the model to load          *
+************************************************************
+
+Chart Version: {{ .Chart.Version }}
+App Version:   {{ .Chart.AppVersion }}
+Image:         {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+{{- if .Values.persistence.enabled }}
+{{- if .Values.persistence.existingClaim }}
+Using existing PVC: {{ .Values.persistence.existingClaim }}
+{{- else }}
+Creating new PVC with {{ .Values.persistence.size }} storage
+{{- end }}
+{{- end }}
+
+NEXT STEPS:
+
+1. Wait for the pod to be ready:
+
+   kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "cosmos-reason1.name" . }}" -w
+
+2. Check the logs:
+
+   kubectl logs -f -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "cosmos-reason1.name" . }}"
+
+3. Access the API:
+{{- if .Values.ingress.enabled }}
+
+   Ingress is enabled. Get the ALB endpoint:
+   kubectl get ingress -n {{ .Release.Namespace }} {{ include "cosmos-reason1.fullname" . }}
+
+{{- else }}
+
+   Port forward to access locally:
+   kubectl port-forward svc/{{ include "cosmos-reason1.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+   Then test the API:
+   curl http://localhost:8000/v1/health/ready
+   curl http://localhost:8000/v1/models
+
+{{- end }}
+
+4. Run Helm tests to verify deployment:
+
+   helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+ENDPOINTS:
+- Health Check:  /v1/health/ready
+- Models:        /v1/models
+- Completions:   /v1/chat/completions
+- Metrics:       /metrics
+{{- if .Values.metrics.serviceMonitor.enabled }}
+
+PROMETHEUS MONITORING:
+ServiceMonitor is enabled. Metrics will be scraped automatically.
+{{- end }}
+
+For more information, visit:
+https://github.com/nvidia-cosmos/cosmos-cookbook

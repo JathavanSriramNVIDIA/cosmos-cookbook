@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "cosmos-reason1.fullname" . }}-test-completions"
+  labels:
+    {{- include "cosmos-reason1.labels" . | nindent 4 }}
+    sidecar.istio.io/inject: "false"
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+    - name: curl
+      image: curlimages/curl:8.6.0
+      command: ['curl']
+      args:
+        - -X
+        - "POST"
+        - 'http://{{ .Values.service.name | default (include "cosmos-reason1.fullname" .) }}:{{ .Values.service.port }}/v1/chat/completions'
+        - -H
+        - 'accept: application/json'
+        - -H
+        - 'Content-Type: application/json'
+        - --fail-with-body
+        - --max-time
+        - "120"
+        - -d
+        - |
+            {
+              "model": "{{ .Values.model.name }}",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "What is 2+2? Answer briefly."
+                }
+              ],
+              "max_tokens": 50,
+              "temperature": 0.0
+            }
+  restartPolicy: Never

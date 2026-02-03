@@ -1,0 +1,17 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+plan.out
+.terraform.lock.hcl
+
+# Sensitive files
+terraform.tfvars
+
+# Ansible
+*.retry
+
+# Local files
+.DS_Store
+*.log

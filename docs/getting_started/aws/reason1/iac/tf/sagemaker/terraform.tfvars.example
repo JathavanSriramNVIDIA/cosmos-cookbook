@@ -1,0 +1,46 @@
+# =============================================================================
+# Example Terraform Variables for Cosmos Reason1 NIM
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+# AWS Region - must be a region where you've subscribed to the model
+aws_region = "us-east-1"
+
+# NIM Package name from your AWS Marketplace subscription
+# After subscribing at https://aws.amazon.com/marketplace/pp/prodview-e6loqk6jyzssy
+# Go to "Continue to configuration" and copy the model package name
+nim_package = "your-nim-package-name-here"
+
+# Resource naming prefix
+resource_prefix = "cosmos"
+
+# Instance type for the SageMaker endpoint
+# Recommended options:
+#   - ml.g5.12xlarge  : 4x A10G, 96GB VRAM, good balance (default)
+#   - ml.g6e.xlarge   : 1x L40S, 48GB VRAM, cost-effective for real-time
+#   - ml.g5.24xlarge  : 4x A10G, 96GB VRAM, higher throughput
+#   - ml.p4d.24xlarge : 8x A100, 320GB VRAM, maximum performance
+instance_type = "ml.g5.12xlarge"
+
+# Number of instances (for high availability or load balancing)
+instance_count = 1
+
+# Container startup timeout (seconds) - NIM containers need time to load models
+container_startup_timeout = 3600
+
+# Model data download timeout (seconds) - large models need time to download
+model_data_download_timeout = 3600
+
+# S3 bucket ARNs for custom data access (optional)
+# Leave empty if not needed - SageMaker managed policy provides access to default buckets
+# Example: ["arn:aws:s3:::my-data-bucket"]
+s3_bucket_arns = []
+
+# Additional tags for resource tracking
+tags = {
+  Environment = "development"
+  Team        = "ml-platform"
+  CostCenter  = "ai-research"
+}

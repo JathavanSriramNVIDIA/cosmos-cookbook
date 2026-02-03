@@ -1,0 +1,25 @@
+apiVersion: v2
+name: cosmos-reason1
+description: NVIDIA Cosmos Reason1 NIM - A multimodal reasoning model for physical AI
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+# Kubernetes version requirement
+kubeVersion: ">=1.23.0-0"
+keywords:
+  - nvidia
+  - cosmos
+  - reason1
+  - nim
+  - llm
+  - inference
+  - gpu
+home: https://github.com/nvidia-cosmos/cosmos-reason1
+sources:
+  - https://github.com/nvidia-cosmos/cosmos-cookbook
+maintainers:
+  - name: NVIDIA
+    url: https://nvidia.com
+annotations:
+  nvidia.com/nim: "true"
+  nvidia.com/model: "cosmos-reason1-7b"

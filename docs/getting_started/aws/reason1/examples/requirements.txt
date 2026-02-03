@@ -1,0 +1,5 @@
+# Requirements for Cosmos Reason1 AWS example scripts
+# Install with: pip install -r requirements.txt
+
+boto3>=1.34.0
+botocore>=1.34.0

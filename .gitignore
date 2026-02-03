@@ -187,3 +187,12 @@ core.*
 /public/
 /dataset/
 /downloaded_data/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+plan.out

@@ -1,0 +1,59 @@
+# =============================================================================
+# Cosmos Reason1 NIM Helm Chart Values
+# =============================================================================
+# This chart deploys NVIDIA Cosmos Reason1 NIM on Kubernetes with GPU support.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Deployment Configuration
+# -----------------------------------------------------------------------------
+
+## @param replicaCount Number of replicas for the deployment
+replicaCount: 1
+## @param statefulSet.enabled Use StatefulSet instead of Deployment (enables PVC templates)
+statefulSet:
+  enabled: false
+# -----------------------------------------------------------------------------
+# Command Override Configuration
+# -----------------------------------------------------------------------------
+
+## @param customCommand Overrides command line options sent to the NIM container
+## For advanced use only (e.g., [python, -m, vllm_nvext.entrypoints.openai.api_server])
+customCommand: []
+## @param customArgs Overrides command line arguments of the NIM container
+## For advanced use only (e.g., [--max-model-len, 8192])
+customArgs: []
+# -----------------------------------------------------------------------------
+# Container Image Configuration
+# -----------------------------------------------------------------------------
+
+## @param image.repository Container image repository
+## @param image.tag Container image tag
+## @param image.pullPolicy Image pull policy
+# For NGC (default):
+#   repository: nvcr.io/nim/nvidia/cosmos-reason1-7b
+# For ECR (air-gapped):
+#   repository: <account>.dkr.ecr.<region>.amazonaws.com/cosmos-reason1
+image:
+  repository: nvcr.io/nim/nvidia/cosmos-reason1-7b
+  tag: latest
+  pullPolicy: IfNotPresent
+## @param imagePullSecrets Image pull secrets for private registries
+# For NGC: use ngc-registry secret
+# For ECR: leave empty (EKS nodes have ECR access via IAM)
+imagePullSecrets:
+  - name: ngc-registry
+# For ECR air-gapped deployment, comment out the above and use:
+# imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# Init Containers Configuration
+# -----------------------------------------------------------------------------
+
+## @param initContainers Init containers configuration
+initContainers:
+  extraInit: []
+  # Example:
+  # - name: my-init
+  #   image: busybox
+  #   command: [sh, -c, echo

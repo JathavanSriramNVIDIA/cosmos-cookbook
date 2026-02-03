@@ -1,0 +1,574 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Cosmos Reason1 NIM Helm Chart Values",
+    "type": "object",
+    "properties": {
+        "replicaCount": {
+            "type": "integer",
+            "description": "Number of replicas for the deployment",
+            "default": 1,
+            "minimum": 1
+        },
+        "image": {
+            "type": "object",
+            "description": "Container image configuration",
+            "properties": {
+                "repository": {
+                    "type": "string",
+                    "description": "Container image repository",
+                    "default": "nvcr.io/nim/nvidia/cosmos-reason1-7b"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Container image tag",
+                    "default": "latest"
+                },
+                "pullPolicy": {
+                    "type": "string",
+                    "description": "Image pull policy",
+                    "enum": ["Always", "IfNotPresent", "Never"],
+                    "default": "IfNotPresent"
+                }
+            }
+        },
+        "imagePullSecrets": {
+            "type": "array",
+            "description": "List of image pull secrets",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Create a service account",
+                    "default": true
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Annotations for the service account",
+                    "default": {}
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Name of the service account",
+                    "default": ""
+                }
+            }
+        },
+        "podAnnotations": {
+            "type": "object",
+            "description": "Annotations to add to pods",
+            "default": {}
+        },
+        "podSecurityContext": {
+            "type": "object",
+            "description": "Security context for pods",
+            "properties": {
+                "runAsUser": {
+                    "type": "integer",
+                    "description": "User ID to run as",
+                    "default": 1000
+                },
+                "runAsGroup": {
+                    "type": "integer",
+                    "description": "Group ID to run as",
+                    "default": 1000
+                },
+                "fsGroup": {
+                    "type": "integer",
+                    "description": "Filesystem group ID",
+                    "default": 1000
+                }
+            }
+        },
+        "containerSecurityContext": {
+            "type": "object",
+            "description": "Security context for containers",
+            "default": {}
+        },
+        "model": {
+            "type": "object",
+            "description": "Model configuration",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Model name for API",
+                    "default": "nvidia/cosmos-reason1-7b"
+                },
+                "nimCache": {
+                    "type": "string",
+                    "description": "Path to NIM cache directory",
+                    "default": "/opt/nim/.cache"
+                },
+                "ngcAPISecret": {
+                    "type": "string",
+                    "description": "Name of secret containing NGC_API_KEY",
+                    "default": "ngc-api-key"
+                },
+                "ngcAPIKey": {
+                    "type": "string",
+                    "description": "NGC API key (creates secret if provided)",
+                    "default": ""
+                },
+                "openaiPort": {
+                    "type": "integer",
+                    "description": "OpenAI API port",
+                    "default": 8000
+                },
+                "jsonLogging": {
+                    "type": "boolean",
+                    "description": "Enable JSON logging",
+                    "default": true
+                },
+                "logLevel": {
+                    "type": "string",
+                    "description": "Log level",
+                    "enum": ["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                    "default": "INFO"
+                }
+            }
+        },
+        "nim": {
+            "type": "object",
+            "description": "NIM runtime configuration",
+            "properties": {
+                "shmSize": {
+                    "type": "string",
+                    "description": "Shared memory size",
+                    "default": "32Gi"
+                },
+                "extraEnv": {
+                    "type": "array",
+                    "description": "Additional environment variables",
+                    "items": {
+                        "type": "object"
+                    },
+                    "default": []
+                }
+            }
+        },
+        "resources": {
+            "type": "object",
+            "description": "Resource limits and requests",
+            "properties": {
+                "limits": {
+                    "type": "object",
+                    "properties": {
+                        "nvidia.com/gpu": {
+                            "type": "integer",
+                            "description": "Number of GPUs",
+                            "default": 4
+                        },
+                        "memory": {
+                            "type": "string",
+                            "description": "Memory limit",
+                            "default": "180Gi"
+                        },
+                        "cpu": {
+                            "type": "string",
+                            "description": "CPU limit",
+                            "default": "48"
+                        }
+                    }
+                },
+                "requests": {
+                    "type": "object",
+                    "properties": {
+                        "nvidia.com/gpu": {
+                            "type": "integer",
+                            "default": 4
+                        },
+                        "memory": {
+                            "type": "string",
+                            "default": "90Gi"
+                        },
+                        "cpu": {
+                            "type": "string",
+                            "default": "24"
+                        }
+                    }
+                }
+            }
+        },
+        "nodeSelector": {
+            "type": "object",
+            "description": "Node selector for pod assignment",
+            "default": {}
+        },
+        "tolerations": {
+            "type": "array",
+            "description": "Tolerations for pod assignment",
+            "items": {
+                "type": "object"
+            }
+        },
+        "affinity": {
+            "type": "object",
+            "description": "Affinity rules for pod assignment",
+            "default": {}
+        },
+        "service": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "Service type",
+                    "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+                    "default": "ClusterIP"
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "Service port",
+                    "default": 8000
+                },
+                "annotations": {
+                    "type": "object",
+                    "default": {}
+                },
+                "labels": {
+                    "type": "object",
+                    "default": {}
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Override service name",
+                    "default": ""
+                }
+            }
+        },
+        "ingress": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable ingress",
+                    "default": false
+                },
+                "className": {
+                    "type": "string",
+                    "description": "Ingress class name",
+                    "default": "alb"
+                },
+                "annotations": {
+                    "type": "object",
+                    "default": {}
+                },
+                "hosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "tls": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "livenessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "method": {
+                    "type": "string",
+                    "enum": ["http", "script"],
+                    "default": "http"
+                },
+                "path": {
+                    "type": "string",
+                    "default": "/v1/health/live"
+                },
+                "initialDelaySeconds": {
+                    "type": "integer",
+                    "default": 15
+                },
+                "periodSeconds": {
+                    "type": "integer",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "successThreshold": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "integer",
+                    "default": 3
+                }
+            }
+        },
+        "readinessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "path": {
+                    "type": "string",
+                    "default": "/v1/health/ready"
+                },
+                "initialDelaySeconds": {
+                    "type": "integer",
+                    "default": 15
+                },
+                "periodSeconds": {
+                    "type": "integer",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "successThreshold": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "integer",
+                    "default": 3
+                }
+            }
+        },
+        "startupProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "path": {
+                    "type": "string",
+                    "default": "/v1/health/ready"
+                },
+                "initialDelaySeconds": {
+                    "type": "integer",
+                    "default": 40
+                },
+                "periodSeconds": {
+                    "type": "integer",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "successThreshold": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "integer",
+                    "default": 180
+                }
+            }
+        },
+        "autoscaling": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "minReplicas": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "maxReplicas": {
+                    "type": "integer",
+                    "default": 10
+                },
+                "metrics": {
+                    "type": "array",
+                    "default": []
+                }
+            }
+        },
+        "podDisruptionBudget": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "minAvailable": {
+                    "type": "integer"
+                },
+                "maxUnavailable": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statefulSet": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Use StatefulSet instead of Deployment",
+                    "default": false
+                }
+            }
+        },
+        "persistence": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "existingClaim": {
+                    "type": "string",
+                    "default": ""
+                },
+                "storageClass": {
+                    "type": "string",
+                    "default": "efs-sc"
+                },
+                "accessModes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": ["ReadWriteMany"]
+                },
+                "size": {
+                    "type": "string",
+                    "default": "100Gi"
+                },
+                "mountPath": {
+                    "type": "string",
+                    "default": "/opt/nim/.cache"
+                },
+                "annotations": {
+                    "type": "object",
+                    "default": {}
+                },
+                "stsPersistentVolumeClaimRetentionPolicy": {
+                    "type": "object",
+                    "properties": {
+                        "whenDeleted": {
+                            "type": "string",
+                            "default": "Retain"
+                        },
+                        "whenScaled": {
+                            "type": "string",
+                            "default": "Retain"
+                        }
+                    }
+                }
+            }
+        },
+        "hostPath": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "path": {
+                    "type": "string",
+                    "default": "/model-store"
+                }
+            }
+        },
+        "nfs": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "server": {
+                    "type": "string",
+                    "default": "nfs-server.example.com"
+                },
+                "path": {
+                    "type": "string",
+                    "default": "/exports"
+                },
+                "readOnly": {
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "extraVolumes": {
+            "type": "object",
+            "description": "Additional volumes to add",
+            "default": {}
+        },
+        "extraVolumeMounts": {
+            "type": "object",
+            "description": "Additional volume mounts to add",
+            "default": {}
+        },
+        "proxyCA": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "secretName": {
+                    "type": "string",
+                    "default": ""
+                },
+                "keyName": {
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
+        "metrics": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "serviceMonitor": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "additionalLabels": {
+                            "type": "object",
+                            "default": {}
+                        },
+                        "interval": {
+                            "type": "string",
+                            "default": "30s"
+                        },
+                        "path": {
+                            "type": "string",
+                            "default": "/metrics"
+                        }
+                    }
+                }
+            }
+        },
+        "terminationGracePeriodSeconds": {
+            "type": "integer",
+            "description": "Termination grace period",
+            "default": 60
+        }
+    }
+}

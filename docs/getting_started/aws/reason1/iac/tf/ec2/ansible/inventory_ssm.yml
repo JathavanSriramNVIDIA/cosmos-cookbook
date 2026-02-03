@@ -1,0 +1,56 @@
+# =============================================================================
+# Ansible Inventory for AWS SSM Connection
+# =============================================================================
+# This inventory uses the aws_ssm connection plugin instead of SSH.
+# No SSH keys or open ports required - uses AWS IAM for authentication.
+#
+# Prerequisites:
+# 1. AWS CLI configured with credentials
+# 2. Session Manager plugin installed
+# 3. boto3 and botocore Python packages installed
+#
+# Setup (run from ec2/ directory after terraform apply):
+#   INSTANCE_ID=$(terraform output -raw instance_id)
+#   REGION=$(terraform output -raw region)
+#   BUCKET=$(terraform output -raw ansible_s3_bucket)
+#
+#   cd ansible
+#   sed -i "s/INSTANCE_ID_PLACEHOLDER/$INSTANCE_ID/" inventory_ssm.yml
+#   sed -i "s/REGION_PLACEHOLDER/$REGION/" inventory_ssm.yml
+#   sed -i "s/BUCKET_PLACEHOLDER/$BUCKET/" inventory_ssm.yml
+#
+# Usage:
+#   export NGC_API_KEY="your-ngc-api-key"
+#   ansible-playbook -i inventory_ssm.yml setup_cosmos_nim.yml
+# =============================================================================
+all:
+  hosts:
+    cosmos_gpu:
+      # Replace with your instance ID from terraform output
+      ansible_host: "INSTANCE_ID_PLACEHOLDER"
+      # AWS SSM connection settings
+      ansible_connection: aws_ssm
+      ansible_aws_ssm_region: "REGION_PLACEHOLDER"
+      # S3 bucket for file transfers (required for aws_ssm connection)
+
+      # Created by Terraform - get name with: terraform output -raw ansible_s3_bucket
+      ansible_aws_ssm_bucket_name: "BUCKET_PLACEHOLDER"
+      # Remote user settings
+      # SSM sessions start as ssm-user, so we use become to escalate
+      ansible_user: ssm-user
+      ansible_python_interpreter: /usr/bin/python3
+      # Use /tmp for ansible temp files (ssm-user can't write to /home/ubuntu)
+      ansible_remote_tmp: /tmp/.ansible/tmp
+      # Privilege escalation to run tasks as root
+      ansible_become: yes
+      ansible_become_method: sudo
+      # SSM document for shell access
+      ansible_aws_ssm_plugin: "/usr/local/sessionmanagerplugin/bin/session-manager-plugin"
+  vars:
+    # NGC API Key - set via environment variable or here
+    ngc_api_key: "{{ lookup('env', 'NGC_API_KEY') }}"
+    # NIM settings
+    nim_image: "nvcr.io/nim/nvidia/cosmos-reason1-7b:latest"
+    nim_container_name: "cosmos-reason1"
+    nim_port: 8000
+    workspace_dir: "/home/ubuntu/cosmos-nim"

@@ -1,0 +1,19 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cosmos-reason1.fullname" . }}
+  labels:
+    {{- include "cosmos-reason1.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cosmos-reason1.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ .Values.metrics.serviceMonitor.path | default "/metrics" }}
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "30s" }}
+{{- end }}

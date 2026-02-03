@@ -1,0 +1,119 @@
+# =============================================================================
+# Example Terraform Variables for Cosmos Reason1 on AWS EKS
+# =============================================================================
+# Copy this file to terraform.tfvars and update the values as needed.
+# =============================================================================
+
+# AWS region to deploy resources
+aws_region = "us-east-1"
+
+# Prefix for all resource names (must be lowercase, alphanumeric with hyphens)
+resource_prefix = "cosmos"
+
+# EKS cluster name (optional, defaults to {resource_prefix}-eks)
+# cluster_name = "my-cosmos-cluster"
+
+# Kubernetes version
+kubernetes_version = "1.31"
+
+# -----------------------------------------------------------------------------
+# VPC Configuration
+# -----------------------------------------------------------------------------
+
+# CIDR block for the VPC
+vpc_cidr = "10.0.0.0/16"
+
+# Number of availability zones (2 or 3)
+availability_zones_count = 2
+
+# -----------------------------------------------------------------------------
+# GPU Node Group Configuration
+# -----------------------------------------------------------------------------
+
+# GPU instance type
+# Options:
+#   - g5.12xlarge  : 4x A10G (96GB VRAM), 192GB RAM - Recommended
+#   - g5.24xlarge  : 4x A10G (96GB VRAM), 384GB RAM - Higher memory
+#   - g5.48xlarge  : 8x A10G (192GB VRAM), 768GB RAM - Maximum A10G
+#   - p4d.24xlarge : 8x A100 (320GB VRAM), 1152GB RAM - Maximum performance
+gpu_instance_type = "g5.12xlarge"
+
+# Number of GPU nodes
+gpu_node_count     = 1
+gpu_node_min_count = 1
+gpu_node_max_count = 3
+
+# Disk size for GPU nodes (GB)
+gpu_node_disk_size = 200
+
+# AMI type for GPU nodes
+gpu_ami_type = "AL2_x86_64_GPU"
+
+# -----------------------------------------------------------------------------
+# Add-ons and Features
+# -----------------------------------------------------------------------------
+
+# Enable Cluster Autoscaler for automatic node scaling
+enable_cluster_autoscaler = true
+
+# Enable Metrics Server for resource metrics (required for HPA)
+enable_metrics_server = true
+
+# Enable AWS Load Balancer Controller for ALB/NLB ingress
+enable_aws_load_balancer_controller = true
+
+# -----------------------------------------------------------------------------
+# Security Configuration
+# -----------------------------------------------------------------------------
+
+# Enable public access to EKS API endpoint
+cluster_endpoint_public_access = true
+
+# Enable private access to EKS API endpoint
+cluster_endpoint_private_access = true
+
+# CIDR blocks allowed to access public EKS endpoint
+# SECURITY: Restrict this to your IP/network for production!
+# Example: ["YOUR_PUBLIC_IP/32", "10.0.0.0/8"]
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+# Enable VPC Flow Logs for network traffic auditing
+enable_vpc_flow_logs = true
+
+# VPC Flow Logs retention in days
+flow_logs_retention_days = 30
+
+# Enable envelope encryption for Kubernetes secrets
+enable_secrets_encryption = true
+
+# Optional: Customer-managed KMS key ARN for encryption
+# If null, a new KMS key is created for EKS secrets
+# Used for: EKS secrets, EFS, ECR
+# kms_key_arn = "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+
+# -----------------------------------------------------------------------------
+# ECR Configuration (for Air-Gapped Deployments)
+# -----------------------------------------------------------------------------
+
+# Create ECR repository for storing NIM images locally
+# Enable this for air-gapped deployments where NGC access is not available
+# create_ecr_repository = true
+
+# ECR repository name
+# ecr_repository_name = "cosmos-reason1"
+
+# Image tag mutability (IMMUTABLE recommended for production)
+# ecr_image_tag_mutability = "IMMUTABLE"
+
+# Enable vulnerability scanning on push
+# ecr_scan_on_push = true
+
+# -----------------------------------------------------------------------------
+# Tags
+# -----------------------------------------------------------------------------
+
+# Additional tags for all resources
+tags = {
+  Environment = "development"
+  Team        = "ml-platform"
+}
