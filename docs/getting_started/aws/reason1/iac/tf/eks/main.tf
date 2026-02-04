@@ -928,9 +928,7 @@ resource "aws_security_group" "efs" {
 resource "aws_efs_file_system" "model_cache" {
   creation_token = "${var.resource_prefix}-model-cache"
   encrypted      = true
-  kms_key_id     = var.kms_key_arn  # Uses AWS-managed key if null
-
-  performance_mode = "generalPurpose"
+  kms_key_id     = var.kms_key_arn  # Uses AWS-managed key if null  performance_mode = "generalPurpose"
   throughput_mode  = "bursting"
 
   lifecycle_policy {
